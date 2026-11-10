@@ -27,3 +27,6 @@ cfg_if! {
 }
 
 pub(crate) use inner::{convert, convert_lossy, decode, decode_lossy};
+
+#[cfg(all(target_os = "linux", target_env = "gnu", feature = "libc-iconv"))]
+pub(crate) use inner::ffi;

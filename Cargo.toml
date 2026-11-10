@@ -8,7 +8,7 @@ keywords = ["encoding", "unicode", "wasm", "iconv"]
 repository = "https://github.com/bdbai/iconv-native-rs"
 edition = "2021"
 license = "MIT OR Apache-2.0"
-rust-version = "1.80"
+rust-version = "1.99"
 exclude = [".github", ".vscode", "rustfmt.toml"]
 
 [features]
@@ -21,6 +21,7 @@ libiconv = []
 fallback-libiconv = []
 
 [dependencies]
+sha2 = "=0.11.1"
 cfg-if = "1"
 widestring = { version = "1", optional = true, features = [
     "alloc",
@@ -43,6 +44,9 @@ wasm-bindgen-test = "0.3"
 
 [dev-dependencies]
 lexopt = "0.3"
+
+[build-dependencies]
+sha2 = "=0.11.1"
 
 [target.'cfg(target_env = "msvc")'.build-dependencies]
 vcpkg = "0.2"
