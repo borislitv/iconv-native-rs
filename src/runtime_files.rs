@@ -9,11 +9,15 @@ pub const LIBDIR: &str = "/usr/lib/x86_64-linux-gnu";
 pub const GCONV: &str = "/usr/lib/x86_64-linux-gnu/gconv";
 pub const LIBC: &str = "/usr/lib/x86_64-linux-gnu/libc.so.6";
 pub const LOADER: &str = "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2";
-// Rust's GNU executable support DSOs, not an inventory of unrelated installed
-// libraries. A new native dependency is an explicit deployment contract change.
-const SUPPORT: [&str; 2] = [
+// The serving executable's explicit GNU/TLS/compression support closure, not an
+// inventory of unrelated installed libraries. Changes require qualification.
+const SUPPORT: [&str; 6] = [
     "/usr/lib/x86_64-linux-gnu/libgcc_s.so.1",
     "/usr/lib/x86_64-linux-gnu/libm.so.6",
+    "/usr/lib/x86_64-linux-gnu/libssl.so.3",
+    "/usr/lib/x86_64-linux-gnu/libcrypto.so.3",
+    "/usr/lib/x86_64-linux-gnu/libz.so.1",
+    "/usr/lib/x86_64-linux-gnu/libzstd.so.1",
 ];
 const MAX_FILES: usize = 1024;
 const MAX_BYTES: u64 = 512 * 1024 * 1024;
@@ -113,7 +117,37 @@ pub fn capture() -> Result<Closure, ()> {
         collect(Path::new(file), 0, &mut paths, &mut directories)?;
     }
     for file in SUPPORT {
-        collect(Path::new(file), 0, &mut paths, &mut directories)?;
+        let file = Path::new(file);
+        let metadata = std::fs::symlink_metadata(file).map_err(|_| ())?;
+        let target = if metadata.is_symlink() {
+            // SONAME aliases may take exactly one hop to a regular file in the
+            // same protected directory. Linux symlink mode bits are not access
+            // controls; require root ownership and protect the directory instead.
+            if metadata.uid() != 0 {
+                return Err(());
+            }
+            let target = std::fs::read_link(file).map_err(|_| ())?;
+            let target = if target.is_absolute() {
+                target
+            } else {
+                Path::new(LIBDIR).join(target)
+            };
+            if target.parent() != Some(Path::new(LIBDIR)) {
+                return Err(());
+            }
+            target
+        } else {
+            file.to_owned()
+        };
+        if !std::fs::symlink_metadata(&target)
+            .map_err(|_| ())?
+            .is_file()
+        {
+            return Err(());
+        }
+        // collect rejects a second alias or special file. The canonical path
+        // and bytes are hashed; parent-directory stamps fence alias replacement.
+        collect(&target, 0, &mut paths, &mut directories)?;
     }
     paths.sort();
     paths.dedup();

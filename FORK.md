@@ -38,15 +38,22 @@ requires it. An empty `convert` is deliberately not a flush.
 The supported deployment is native x86-64 GNU/Linux, Rust 1.99 or later, with
 `default-features = false, features = ["libc-iconv"]`. Cross-compilation is rejected.
 Build and runtime capture the same protected paths: libc, GNU loader, the complete
-gconv tree, and the executable support DSOs `libgcc_s.so.1` and `libm.so.6` under
-`/usr/lib/x86_64-linux-gnu`. Unrelated installed DSOs are not hashed. New native
-dependencies require an explicit contract change and renewed qualification.
+gconv tree, and the executable support DSOs `libgcc_s.so.1`, `libm.so.6`,
+`libssl.so.3`, `libcrypto.so.3`, `libz.so.1` and `libzstd.so.1` under
+`/usr/lib/x86_64-linux-gnu`. These are the existing serving executable's GNU,
+TLS and compression dependencies, not a general library allowlist. Unrelated
+installed DSOs are not hashed. New native dependencies require an explicit
+contract change and renewed qualification.
 
 Capture is limited to 1024 entries, 512 MiB and 32 KiB hashing reads. Files and
 ancestors must be root-owned, not group/world writable; the codec tree cannot
 contain symlinks or special files. Open files, device/inode/size/timestamp stamps
 and protected directory stamps are retained. Hashing/module loading occurs once,
 before request admission; later gates recheck freshness and executable mappings.
+For the six explicit support SONAMEs only, a root-owned alias may take one hop
+to a regular file in the same protected library directory. The actual target
+path/bytes are fingerprinted and matched to executable mappings; directory stamps
+reject alias replacement. Multi-hop, escaping or special-file targets fail closed.
 
 Resolved native function pointers, `AT_BASE`, GNU `link_map` module bases and
 kernel `/proc/self/maps` device/inode/path identities must agree with the captured
@@ -77,7 +84,7 @@ process/container resource envelope. There is no cooperative hard-stop guarantee
 for a native call, nor a guarantee against a privileged actor modifying executable
 memory between checks.
 
-## Qualification
+## Initial qualification
 
 Qualified on 2026-11-10 in image
 `sha256:4636f3f83f9672a3114b1fa3edb66eb34e39442f068d5bc24f8f16f69028de24`:
@@ -124,3 +131,37 @@ counted as sensitivity evidence.
 This qualification is for the dependency only. Application cache/publication
 fences, downstream exact Git pin, native complete-porcelain equivalence and final
 multi-stage application Docker integration remain the application owner's tests.
+
+## Explicit serving support closure follow-up
+
+The original profile correctly rejected the root serving binary's pre-existing
+OpenSSL/zlib/zstd mappings. The four support SONAMEs above are now explicitly
+captured, including one-hop zlib/zstd aliases to their actual regular files. The
+runtime verifier, resolved native-FFI symbol validation, loader/proc mapping
+checks, file hashes and freshness checks are unchanged; no arbitrary system DSO
+or broad installed-library inventory was admitted.
+
+The same pinned image/resource envelope was used for follow-up qualification:
+
+- 32 regular tests pass in both debug and release: 20 existing, six streaming,
+  five runtime and one serving-support test. Strict all-target Clippy and fmt pass.
+- The support test uses DT_NEEDED to map all four real libraries before verify,
+  then checks their stable TLS/version ABIs. It failed with Loader against the
+  previous profile before the capture extension, then passed with the fix.
+- A fresh child deliberately dlopens unlisted `libresolv.so.2` from the protected
+  system directory and is rejected. The actual SSL LD_PRELOAD case is also
+  rejected, as is a search-path substituted byte-identical library.
+- Three separately owned disposable-root-container probes pass: cold/warm gconv
+  drift; byte-identical replaced mapped libc; and identical-byte replacement of
+  each of the four mapped TLS/compression objects, including alias targets.
+  Every original file/inode is restored, with barriers and finite child cleanup.
+- New real RED controls bypass the subsequent namespace check (unlisted DSO
+  incorrectly succeeds), and bypass namespace validation during identical-byte
+  support replacement (incorrect success instead of Loader). Both fail on the
+  intended result assertion; all faults are restored before final GREEN.
+
+An old mapped support object's renamed/deleted path is classified as Loader;
+direct libc symbol mapping mismatch remains Mismatch. Both are fail-closed,
+distinct from a codec conversion failure. The first support mutation fixture was
+corrected to expect this existing public error classification, not a new fallback.
+Application cache wiring and the actual release image remain separate gates.

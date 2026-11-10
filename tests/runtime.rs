@@ -25,6 +25,31 @@ fn runtime_child() {
         "override" => assert_eq!(runtime::verify(), Err(runtime::Error::Override)),
         "search-path" => runtime::verify().unwrap(),
         "relocated-library" => assert_eq!(runtime::verify(), Err(runtime::Error::Loader)),
+        "unlisted-system" => {
+            runtime::verify().unwrap();
+            unsafe extern "C" {
+                fn dlopen(name: *const std::ffi::c_char, flags: i32) -> *mut std::ffi::c_void;
+                fn dlclose(handle: *mut std::ffi::c_void) -> i32;
+            }
+            struct Module(*mut std::ffi::c_void);
+            impl Drop for Module {
+                fn drop(&mut self) {
+                    // SAFETY: this scope owns exactly one successful dlopen reference.
+                    unsafe { dlclose(self.0) };
+                }
+            }
+            // SAFETY: fixed protected system path and GNU RTLD_NOW|RTLD_LOCAL.
+            // A fresh child isolates this deliberate loader-namespace mutation.
+            let handle = unsafe { dlopen(c"/usr/lib/x86_64-linux-gnu/libresolv.so.2".as_ptr(), 2) };
+            assert!(
+                !handle.is_null(),
+                "unlisted system-library fixture must load"
+            );
+            let module = Module(handle);
+            assert_eq!(runtime::verify(), Err(runtime::Error::Loader));
+            drop(module);
+            runtime::verify().unwrap();
+        }
         "changed" => assert_eq!(runtime::verify(), Err(runtime::Error::Mismatch)),
         scenario @ ("warm-changed" | "mapped-changed") => {
             if scenario == "warm-changed" {
@@ -97,6 +122,7 @@ fn converter_and_loader_overrides_are_rejected() {
     for variable in [
         ("GCONV_PATH", "/nonexistent-synthetic-codec-path"),
         ("LD_PRELOAD", ""),
+        ("LD_PRELOAD", "/usr/lib/x86_64-linux-gnu/libssl.so.3"),
         ("LD_AUDIT", ""),
         ("GLIBC_TUNABLES", ""),
     ] {
@@ -114,6 +140,11 @@ fn cargo_search_path_is_not_a_runtime_mismatch() {
         Some(("LD_LIBRARY_PATH", "/nonexistent-synthetic-library-path")),
     )
     .success();
+}
+
+#[test]
+fn unlisted_system_dso_is_rejected_even_in_protected_libdir() {
+    Probe::spawn("unlisted-system", None, None).success();
 }
 
 #[test]
