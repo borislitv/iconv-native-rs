@@ -24,7 +24,7 @@ fn test_convert_success() {
 with_harness! {
     fn test_convert_roundtrip() {
         let testcases = [
-            (TEST_UTF8, &TEST_UTF16_LE[..], "utf-8", "utf-16le"),
+            (TEST_UTF8, TEST_UTF16_LE, "utf-8", "utf-16le"),
             (TEST_UTF8_BOM, TEST_UTF16_LE_BOM, "utf-8", "utf-16le"),
             (TEST_UTF8, TEST_UTF16_BE, "utf-8", "utf-16be"),
             (TEST_UTF8_BOM, TEST_UTF16_BE_BOM, "utf-8", "utf-16be"),
@@ -64,14 +64,14 @@ with_harness! {
 
     fn test_convert_bom() {
         let testcases_be_16 = [
-            (TEST_UTF8_BOM, &TEST_UTF16_DE_BOM_2[..], "utf-8", "utf-16"),
+            (TEST_UTF8_BOM, TEST_UTF16_DE_BOM_2, "utf-8", "utf-16"),
             (TEST_UTF8, TEST_UTF16_DE_BOM, "utf-8", "utf-16"),
             (TEST_UTF16_DE_BOM, TEST_UTF8, "utf-16", "utf-8"),
             (TEST_UTF16_DE, TEST_UTF8, "utf-16", "utf-8"),
             (TEST_UTF16_DE, TEST_UTF32_DE_BOM, "utf-16", "utf-32"),
         ];
         let testcases_be_32 = [
-            (TEST_UTF8_BOM, &TEST_UTF32_DE_BOM_2[..], "utf-8", "utf-32"),
+            (TEST_UTF8_BOM, TEST_UTF32_DE_BOM_2, "utf-8", "utf-32"),
             (TEST_UTF8, TEST_UTF32_DE_BOM, "utf-8", "utf-32"),
             (TEST_UTF32_DE_BOM, TEST_UTF8, "utf-32", "utf-8"),
             (TEST_UTF32_DE, TEST_UTF8, "utf-32", "utf-8"),
@@ -83,7 +83,7 @@ with_harness! {
         ];
         for (casename, testcases) in testcases {
             for (idx, (input, expected, from_encoding, to_encoding)) in
-                testcases.into_iter().cloned().enumerate()
+                testcases.iter().cloned().enumerate()
             {
                 let result = convert(input, from_encoding, to_encoding).unwrap();
                 assert_eq!(
@@ -151,7 +151,7 @@ with_harness! {
             let idx = idx.to_string();
             let result = convert(input, from_encoding, to_encoding);
             let result_lossy =
-                convert_lossy(input, from_encoding, to_encoding).expect(&(idx.clone() + " lossy"));
+                convert_lossy(input, from_encoding, to_encoding).unwrap_or_else(|_| panic!("{idx} lossy"));
             assert_eq!(
                 result.expect_err(&(idx.clone() + " invalid input")),
                 ConvertError::InvalidInput,

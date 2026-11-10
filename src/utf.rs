@@ -152,7 +152,7 @@ mod tests {
             ("utf-32be", UtfType::Utf32, ByteOrderMark::Be),
         ];
         for (input, r#type, byte_order) in testcases.iter() {
-            let encoding = UtfEncoding::parse(input).expect(&input);
+            let encoding = UtfEncoding::parse(input).expect(input);
             assert_eq!(encoding.r#type, *r#type, "{input}");
             assert_eq!(encoding.byte_order, *byte_order, "{input}");
         }
@@ -179,7 +179,7 @@ mod tests {
             ("utf-32be", false),
         ];
         for (input, expected) in testcases.iter() {
-            let encoding = UtfEncoding::parse(input).expect(&input);
+            let encoding = UtfEncoding::parse(input).expect(input);
             assert_eq!(encoding.is_ambiguous(), *expected, "{input}");
         }
     }

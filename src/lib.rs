@@ -8,6 +8,27 @@
 
 extern crate alloc;
 
+#[cfg(not(all(target_os = "linux", target_env = "gnu", feature = "libc-iconv")))]
+compile_error!("the reviewed streaming adapter requires GNU libc Linux with libc-iconv");
+
+/// Reviewed caller-buffer adapter, supported only on the qualified GNU libc
+/// Linux target. This fork intentionally does not qualify other backends.
+#[cfg(all(target_os = "linux", target_env = "gnu", feature = "libc-iconv"))]
+pub mod stream;
+
+/// Effective-runtime loader/module validation for the qualified deployment.
+pub mod runtime;
+mod runtime_files;
+
+/// Actual qualified build libc and gconv file-closure identity. Runtime deployment
+/// must preserve this closure; changing it requires rebuilding the producer.
+pub const BUILD_CONTRACT: &str = env!("ICONV_BUILD_CONTRACT");
+
+/// SHA-256 identity of this dependency's manifest, build script and Rust sources.
+/// Bind this together with the locked Git revision and `BUILD_CONTRACT` in a
+/// downstream producer identity; call `runtime::verify()` before serving it.
+pub const CODEC_SOURCE_ID: &str = env!("ICONV_SOURCE_SHA256");
+
 mod bom;
 mod encoding;
 mod error;
